@@ -13,6 +13,15 @@ from models.tdnn import TDNN
 import torch
 import torch.nn.functional as F
 
+def masked_stats(tensor, mask):
+    mean = torch.div(torch.sum(tensor*mask, dim=1),torch.sum(mask, dim=1))
+    var = torch.square(tensor-mean)
+    var = torch.sum(var*mask, dim=1)
+    var = torch.div(var, torch.sum(mask, dim=1)+1.0e-8)
+    std = torch.sqrt(var)
+
+    return mean, std
+    
 class X_vector(nn.Module):
     '''
     context size 5 and dilation 1 is equivalent to [-2,-1,0,1,2]
@@ -37,7 +46,7 @@ class X_vector(nn.Module):
         if mtl > 0: # mtl = # classes for another objective
             self.output_mtl = nn.Linear(512, mtl)
             
-    def forward(self, inputs):
+    def forward(self, inputs, mask=None):
         tdnn1_out = self.tdnn1(inputs)
         return tdnn1_out
         tdnn2_out = self.tdnn2(tdnn1_out)
@@ -45,8 +54,11 @@ class X_vector(nn.Module):
         tdnn4_out = self.tdnn4(tdnn3_out)
         out = self.segment5(tdnn4_out) # (b, t, f)
         ### Stat Pool
-        mean = torch.mean(out,1) # (b, f)
-        std = torch.std(out,1) # (b, f)
+        if mask is None:
+            mean = torch.mean(out,1) # (b, f)
+            std = torch.std(out,1) # (b, f)
+        else:
+            mean, std = masked_stats(out, mask)
         stat_pooling = torch.cat((mean,std),1) # (b, fx2)
         segment6_out = self.segment6(stat_pooling)
         x_vec = self.segment7(segment6_out)

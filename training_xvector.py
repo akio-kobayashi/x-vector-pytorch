@@ -11,7 +11,6 @@ Created on Sat May 30 20:22:26 2020
 import torch
 import numpy as np
 from torch.utils.data import DataLoader   
-#from SpeechDataGenerator import SpeechDataGenerator
 from generator import SpeechDataSet
 import generator
 import torch.nn as nn
@@ -24,6 +23,7 @@ from sklearn.metrics import accuracy_score
 from utils.utils import speech_collate
 import torch.nn.functional as F
 torch.multiprocessing.set_sharing_strategy('file_system')
+from metric import AdaCos
 
 ########## Argument parser
 parser = argparse.ArgumentParser(add_help=False)
@@ -66,9 +66,9 @@ model = X_vector(args.input_dim, args.num_classes).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0, betas=(0.9, 0.98), eps=1e-9)
 #
 #loss_fun = nn.CrossEntropyLoss()
-criterion = metric.AdaCos(512, 2)
+criterion = AdaCos(512, 2)
 if args.mtl > 0:
-    criterion_mtl = metric.AdaCos(512, args.mtl)
+    criterion_mtl = AdaCos(512, args.mtl)
 
 
 def train(train_loader,epoch):
