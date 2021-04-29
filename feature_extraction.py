@@ -9,6 +9,8 @@ Created on Sun May 31 11:15:47 2020
 import os
 import numpy as np
 from utils import utils
+import h5py
+import argparse
 
 def extract_features(audio_filepath):
     features = utils.feature_extraction(audio_filepath)
@@ -16,49 +18,30 @@ def extract_features(audio_filepath):
     
     
 
-def FE_pipeline(feature_list,store_loc,mode):
-    create_root = os.path.join(store_loc,mode)
-    if not os.path.exists(create_root):
-        os.makedirs(create_root)
-    if mode=='train':
-        fid = open('meta/training_feat.txt','w')
-    elif mode=='test':
-        fid = open('meta/testing_feat.txt','w')
-    elif mode=='validation':
-        fid = open('meta/validation_feat.txt','w')
-    else:
-        print('Unknown mode')
+def FE_pipeline(wav_list,h5fd):
     
-    for row in feature_list:
-        filepath = row.split(' ')[0]
-        lang_id = row.split(' ')[1]
-        vid_folder = filepath.split('/')[-2]
-        lang_folder = filepath.split('/')[-3]
-        filename = filepath.split('/')[-1]
-        create_folders = os.path.join(create_root,lang_folder,vid_folder)
+    for row in wav_list:
+        filepath = row.split(' ')[1]
+        tag = row.split(' ')[0]
         if not os.path.exists(create_folders):
             os.makedirs(create_folders)
         extract_feats = extract_features(filepath)
-        dest_filepath = create_folders+'/'+filename[:-4]+'.npy'
-        np.save(dest_filepath,extract_feats)
-        to_write = dest_filepath+' '+lang_id
-        fid.write(to_write+'\n')
-    fid.close()
-    
-
-
+        if '_DT' in tag:
+            label=0
+        else:
+            label=1 # deaf
+        h5fd.create_group(tag)
+        h5fd.create_dataset(tag+'/data', data=extract_feats,
+                            compression='gzip', compression_opts=9)
+        h5fd.create_dataset(tag+'/label')
+        
 if __name__ == '__main__':
-    store_loc = '/media/newhd/youtube_lid_data/Features'
-    read_train = [line.rstrip('\n') for line in open('meta/training.txt')]
-    FE_pipeline(read_train,store_loc,mode='train')
-    
-    read_test = [line.rstrip('\n') for line in open('meta/testing.txt')]
-    FE_pipeline(read_test,store_loc,mode='test')
-    
-    read_val = [line.rstrip('\n') for line in open('meta/validation.txt')]
-    FE_pipeline(read_val,store_loc,mode='validation')
-    
-    
-    
-    
-    
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--list', type=str, required=True, help='wav.scp')
+    parser.add_argument('--output', type=str, required=Tre, help='output hdf5')
+    args = parser.parse_args()
+
+    with h5py.File(args.output, 'w') as h5fd:
+        lines = [line.rstrip('\n') for line in open(args.list)]
+        FE_pipeline(lines,h5fd)

@@ -11,7 +11,9 @@ Created on Sat May 30 20:22:26 2020
 import torch
 import numpy as np
 from torch.utils.data import DataLoader   
-from SpeechDataGenerator import SpeechDataGenerator
+#from SpeechDataGenerator import SpeechDataGenerator
+from generator import SpeechDataSet
+import generator
 import torch.nn as nn
 import os
 import numpy as np
@@ -26,87 +28,105 @@ torch.multiprocessing.set_sharing_strategy('file_system')
 
 ########## Argument parser
 parser = argparse.ArgumentParser(add_help=False)
-parser.add_argument('-training_filepath',type=str,default='meta/training_feat.txt')
-parser.add_argument('-testing_filepath',type=str, default='meta/testing_feat.txt')
-parser.add_argument('-validation_filepath',type=str, default='meta/validation_feat.txt')
+parser.add_argument('--data', type=str)
+parser.add_argument('--train-keys',type=str)
+parser.add_argument('--valid-keys',type=str)
+parser.add_argument('--output', type=str)
+parser.add_argument('--input_dim', type=int, default=60)
+parser.add_argument('--num_classes', type=int, default=2)
+parser.add_argument('--batch_size', type=int, default=256)
+#parser.add_argument('--use_gpu', action="store_true", default=True)
+parser.add_argument('--num_epochs', type=int, default=100)
+parser.add_argument('--crop', type=int, default=0)
+parser.add_argument('--mtl', type=int, default=0, help="number of MTL classes")
+parser.add_argument('--weight', type=float, default=0.5, help="weight for MTL objective")
+parser.add_argument('--log', type=str, default="log.txt")
 
-parser.add_argument('-input_dim', action="store_true", default=257)
-parser.add_argument('-num_classes', action="store_true", default=8)
-parser.add_argument('-lamda_val', action="store_true", default=0.1)
-parser.add_argument('-batch_size', action="store_true", default=256)
-parser.add_argument('-use_gpu', action="store_true", default=True)
-parser.add_argument('-num_epochs', action="store_true", default=100)
 args = parser.parse_args()
 
 ### Data related
-dataset_train = SpeechDataGenerator(manifest=args.training_filepath,mode='train')
-dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size,shuffle=True,collate_fn=speech_collate) 
-
-dataset_val = SpeechDataGenerator(manifest=args.validation_filepath,mode='train')
-dataloader_val = DataLoader(dataset_train, batch_size=args.batch_size,shuffle=True,collate_fn=speech_collate) 
-
-
-dataset_test = SpeechDataGenerator(manifest=args.testing_filepath,mode='test')
-dataloader_test = DataLoader(dataset_test, batch_size=args.batch_size,shuffle=True,collate_fn=speech_collate) 
+train_dataset=SpeechDataset(args.data, keypath=args.train_keys, crop=args.crop)
+train_loader =data.DataLoader(dataset=train_dataset,
+                              batch_size=args.batch_size,
+                              shuffle=True,
+                              collate_fn=lambda x: generator.data_processing(x,'train'),**kwargs)
+valid_dataset=SpeechDataset(args.data, keypath=args.valid_keys)
+valid_loader=data.DataLoader(dataset=valid_dataset,
+                             batch_size=args.batch_size,
+                             shuffle=True,
+                             collate_fn=lambda x: generator.data_processing(x, 'valid'),**kwargs)
+eval_dataset=SpeechDataset(args.data, keypath=args.eval_keys)
+eval_loader=data.DataLoader(dataset=eval_dataset,
+                            batch_size=1, shuffle=False,
+                            collate_fn=lambda x: generator.data_processing(x, 'eval'),**kwargs)
 
 ## Model related
 use_cuda = torch.cuda.is_available()
 device = torch.device("cuda" if use_cuda else "cpu")
 model = X_vector(args.input_dim, args.num_classes).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001, weight_decay=0.0, betas=(0.9, 0.98), eps=1e-9)
-loss_fun = nn.CrossEntropyLoss()
+#
+#loss_fun = nn.CrossEntropyLoss()
+criterion = metric.AdaCos(512, 2)
+if args.mtl > 0:
+    criterion_mtl = metric.AdaCos(512, args.mtl)
 
 
-
-def train(dataloader_train,epoch):
+def train(train_loader,epoch):
     train_loss_list=[]
     full_preds=[]
     full_gts=[]
     model.train()
-    for i_batch, sample_batched in enumerate(dataloader_train):
-    
-        features = torch.from_numpy(np.asarray([torch_tensor.numpy().T for torch_tensor in sample_batched[0]])).float()
-        labels = torch.from_numpy(np.asarray([torch_tensor[0].numpy() for torch_tensor in sample_batched[1]]))
+    for i_batch, sample_batched in enumerate(train_loader):
+        features, labels, speakers, _, _=sample_batched
         features, labels = features.to(device),labels.to(device)
         features.requires_grad = True
         optimizer.zero_grad()
-        pred_logits,x_vec = model(features)
-        #### CE loss
-        loss = loss_fun(pred_logits,labels)
+        if args.mtl == 0:
+            pred_logits,x_vec = model(features)
+            loss = criterion(pred_logits,labels)
+        else:
+            pred_logits, pred_logits_mtl, x_vec = model(features) 
+            loss = (1-args.weight) * criterion(pred_logits, labels) 
+            + args.weight * criterion_mtl(pred_logits_mtl, speakers)
+            
         loss.backward()
         optimizer.step()
         train_loss_list.append(loss.item())
-        #train_acc_list.append(accuracy)
-        #if i_batch%10==0:
-        #    print('Loss {} after {} iteration'.format(np.mean(np.asarray(train_loss_list)),i_batch))
-        
+
+        '''
         predictions = np.argmax(pred_logits.detach().cpu().numpy(),axis=1)
         for pred in predictions:
             full_preds.append(pred)
         for lab in labels.detach().cpu().numpy():
             full_gts.append(lab)
-            
+        '''
+        
     mean_acc = accuracy_score(full_gts,full_preds)
     mean_loss = np.mean(np.asarray(train_loss_list))
     print('Total training loss {} and training Accuracy {} after {} epochs'.format(mean_loss,mean_acc,epoch))
-    
+
+    return mean_acc, mean_loss
 
 
-def validation(dataloader_val,epoch):
+def validation(loader,epoch):
     model.eval()
     with torch.no_grad():
         val_loss_list=[]
         full_preds=[]
         full_gts=[]
-        for i_batch, sample_batched in enumerate(dataloader_val):
-            features = torch.from_numpy(np.asarray([torch_tensor.numpy().T for torch_tensor in sample_batched[0]])).float()
-            labels = torch.from_numpy(np.asarray([torch_tensor[0].numpy() for torch_tensor in sample_batched[1]]))
+        for i_batch, sample_batched in enumerate(loader):
+            features,labels, speakers, input_lengths, _ = sample_batched
             features, labels = features.to(device),labels.to(device)
-            pred_logits,x_vec = model(features)
-            #### CE loss
-            loss = loss_fun(pred_logits,labels)
+            if args.mtl == 0:
+                pred_logits,x_vec = model(features)
+                loss = criterion(pred_logits,labels)
+            else:
+                pred_logits, pred_logits_mtl, x_vec = model(features) 
+                loss = (1-args.weight) * criterion(pred_logits, labels) 
+                + args.weight * criterion_mtl(pred_logits_mtl, speakers)
+
             val_loss_list.append(loss.item())
-            #train_acc_list.append(accuracy)
             predictions = np.argmax(pred_logits.detach().cpu().numpy(),axis=1)
             for pred in predictions:
                 full_preds.append(pred)
@@ -116,12 +136,25 @@ def validation(dataloader_val,epoch):
         mean_acc = accuracy_score(full_gts,full_preds)
         mean_loss = np.mean(np.asarray(val_loss_list))
         print('Total vlidation loss {} and Validation accuracy {} after {} epochs'.format(mean_loss,mean_acc,epoch))
-        
-        model_save_path = os.path.join('save_model', 'best_check_point_'+str(epoch)+'_'+str(mean_loss))
-        state_dict = {'model': model.state_dict(),'optimizer': optimizer.state_dict(),'epoch': epoch}
-        torch.save(state_dict, model_save_path)
+
+        return mean_acc, mean_loss
     
 if __name__ == '__main__':
-    for epoch in range(args.num_epochs):
-        train(dataloader_train,epoch)
-        validation(dataloader_val,epoch)
+    max_acc=0.
+    with open(args.log, 'w') as wf:
+        for epoch in range(args.num_epochs):
+            train_acc, train_loss = train(trai_loadern,epoch)
+            valid_acc, valid_loss = validation(valid_loader,epoch)
+            if valid_acc > max_acc:
+                max_acc = valid_acc
+                mess = 'Maximum validation ACC changed at {} : {}\n'.format(epoch, max_acc)
+                wf.write(mess)
+                print('Maximum validation ACC changed to %.3f' % max_acc)
+                eval_acc, eval_loss = validation(eval_loader, epoch)
+                mess = 'Evaluation ACC at {} : {}\n'.format(epoch, eval_acc)
+                print('Evaluation ACC changed to %.3f' % eval_acc)
+                wf.write(mess)
+                print('Saving model to %s' % args.output)
+                torch.save(model.to('cpu').state_dict(), args.output)
+                model.to(device)
+            
