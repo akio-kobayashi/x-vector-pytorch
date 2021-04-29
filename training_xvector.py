@@ -19,12 +19,11 @@ import os
 import numpy as np
 from torch import optim
 import argparse
-from models.x_vector_Indian_LID import X_vector
+from models.x_vector import X_vector
 from sklearn.metrics import accuracy_score
 from utils.utils import speech_collate
 import torch.nn.functional as F
 torch.multiprocessing.set_sharing_strategy('file_system')
-
 
 ########## Argument parser
 parser = argparse.ArgumentParser(add_help=False)
