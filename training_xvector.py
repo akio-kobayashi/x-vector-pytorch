@@ -23,7 +23,7 @@ from sklearn.metrics import accuracy_score
 from utils.utils import speech_collate
 import torch.nn.functional as F
 torch.multiprocessing.set_sharing_strategy('file_system')
-from metric import AdaCos
+from adacos import AdaCos
 
 ########## Argument parser
 parser = argparse.ArgumentParser(add_help=False)

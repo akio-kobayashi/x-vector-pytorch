@@ -15,11 +15,11 @@ class AdaCos(nn.Module):
         nn.init.xavier_uniform_(self.W)
 
     def forward(self, input, label=None):
-        # normalize features
+        # normalize features ~ get a set of unit-vectors
         x = F.normalize(input)
-        # normalize weights
+        # normalize weights ~ get a set of unit-vectors
         W = F.normalize(self.W)
-        # dot product
+        # dot product ~ get cos \theta
         logits = F.linear(x, W)
         if label is None:
             return logits
