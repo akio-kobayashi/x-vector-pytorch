@@ -153,7 +153,7 @@ def data_processing(data, data_type="train"):
 
     inputs = nn.utils.rnn.pad_sequence(inputs, batch_first=True)
     #labels = nn.utils.rnn.pad_sequence(labels, batch_first=True)
-    labels=torch.from_numpy(labels.astype(np.float32)).clone()
+    labels=torch.from_numpy(labels.astype(np.int)).clone()
     speakers=torch.from_numpy(speakers.astype(np.float32)).clone()
     #speakers = nn.utils.rnn.pad_sequence(labels, batch_first=True)
 
