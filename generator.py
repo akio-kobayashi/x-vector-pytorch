@@ -146,14 +146,14 @@ def data_processing(data, data_type="train"):
         """ inputs : (batch, time, feature) """
         # w/o channel
         inputs.append(torch.from_numpy(input.astype(np.float32)).clone())
-        labels.append(torch.from_numpy(label.astype(np.int)).clone())
-        speakers.append(torch.from_numpy(speaker.astype(np.int)).clone())
+        labels.append(label)
+        speakers.append(spk)
         lengths.append(input.shape[0])
         keys.append(key)
 
     inputs = nn.utils.rnn.pad_sequence(inputs, batch_first=True)
     #labels = nn.utils.rnn.pad_sequence(labels, batch_first=True)
-    labels=torch.from_numpy(labels.astype(np.int)).clone()
+    labels=torch.from_numpy(labels.astype(np.float32)).clone()
     speakers=torch.from_numpy(speakers.astype(np.float32)).clone()
     #speakers = nn.utils.rnn.pad_sequence(labels, batch_first=True)
 
