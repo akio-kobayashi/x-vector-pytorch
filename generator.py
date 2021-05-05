@@ -77,9 +77,9 @@ class SpeechDataset(torch.utils.data.Dataset):
 
     def get_stats(self):
         return self.mean, self.var
-        
+
     def get_speakers(self):
-        return self.spk2id, id2spk
+        return self.spk2id, self.id2spk
 
     def get_keys(self):
         return self.keys
