@@ -60,7 +60,6 @@ class X_vector(nn.Module):
         else:
             mean, std = masked_stats(out, mask)
         stat_pooling = torch.cat((mean,std),1) # (b, fx2)
-        print(stat_pooling.shape)
         segment6_out = self.segment6(stat_pooling)
         x_vec = self.segment7(segment6_out)
         #predictions = self.output(x_vec)
@@ -69,4 +68,4 @@ class X_vector(nn.Module):
         #    return predictions, predictions_mtl, x_vec
         #else:
         #    return predictions,x_vec
-        return x_vec
+        return x_vec, stat_pooling
