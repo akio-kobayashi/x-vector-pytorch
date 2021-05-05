@@ -151,6 +151,8 @@ def data_processing(data, data_type="train"):
         lengths.append(input.shape[0])
         keys.append(key)
 
+    labels=np.array(labels)
+    speakers=np.array(speakers)
     inputs = nn.utils.rnn.pad_sequence(inputs, batch_first=True)
     #labels = nn.utils.rnn.pad_sequence(labels, batch_first=True)
     #labels=torch.from_numpy(labels.astype(np.float32)).clone()
