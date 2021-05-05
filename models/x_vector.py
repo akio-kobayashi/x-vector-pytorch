@@ -31,7 +31,7 @@ class X_vector(nn.Module):
 
     def __init__(self, input_dim = 60):
         super(X_vector, self).__init__()
-        self.mtl=mtl
+        #self.mtl=mtl
 
         self.tdnn1 = TDNN(input_dim=input_dim, output_dim=512, context_size=5, dilation=1,dropout_p=0.5)
         self.tdnn2 = TDNN(input_dim=512, output_dim=512, context_size=3, dilation=2,dropout_p=0.5)
