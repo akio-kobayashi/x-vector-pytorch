@@ -57,7 +57,7 @@ class X_vector(nn.Module):
         if mask is None:
             mean = torch.mean(out,1) # (b, f)
             std = torch.std(out,1) # (b, f)
-        #else:
+        else:
             mean, std = masked_stats(out, mask)
         stat_pooling = torch.cat((mean,std),1) # (b, fx2)
         segment6_out = self.segment6(stat_pooling)
